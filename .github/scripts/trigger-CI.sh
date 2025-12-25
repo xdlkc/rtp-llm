@@ -2,8 +2,8 @@
 
 set -x
 # Check if two arguments are provided
-if [ $# -ne 4 ]; then
-    echo "Usage: $0 <COMMIT_ID> <SECURITY> <GITHUB_SOURCE_REPO> <GITHUB_PR_ID>"
+if [ $# -ne 5 ]; then
+    echo "Usage: $0 <COMMIT_ID> <SECURITY> <GITHUB_SOURCE_REPO> <GITHUB_PR_ID> <GITHUB_RUN_ID>"
     exit 1
 fi
 
