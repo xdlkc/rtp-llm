@@ -20,6 +20,7 @@ GITHUB_SOURCE_REPO=$3
 GITHUB_PR_ID=$4
 BRANCH_NAME="open_merge_pre/${GITHUB_PR_ID}"
 CURRENT_INTERNAL_COMMITID="UNKNOWN"
+CURRENT_GITHUB_RUN_ID=$5
 
 # Call get-branch-info.sh to get CURRENT_INTERNAL_COMMITID
 BRANCH_INFO=$(sh ./get-branch-info.sh "${BRANCH_NAME}")
@@ -50,6 +51,6 @@ curl -v -H "Content-Type: application/json" \
             \"repositoryUrl\": \"${REPO_URL}\",
             \"aone\": { \"projectId\": \"${PROJECT_ID}\", \"pipelineId\": \"${PIPELINE_ID}\"},
             \"newBranch\": { \"name\": \"${BRANCH_NAME}\", \"ref\": \"${BRANCH_REF}\", \"head\": \"UNKNOWN\" },
-            \"params\": {\"cancel-in-progress\": \"${CANCEL_IN_PROGRESS}\", \"github_commit\":\"${GITHUB_COMMIT_ID}\", \"github_source_repo\": \"${GITHUB_SOURCE_REPO}\"}
+            \"params\": {\"cancel-in-progress\": \"${CANCEL_IN_PROGRESS}\", \"github_commit\":\"${GITHUB_COMMIT_ID}\", \"github_source_repo\": \"${GITHUB_SOURCE_REPO}\",\"github_run_id\": \"${CURRENT_GITHUB_RUN_ID}\"}
          }" \
      "https://triggero-mq-pre-rbmuaqmqmz.cn-hangzhou.fcapp.run"
