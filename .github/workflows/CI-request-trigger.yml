@@ -47,7 +47,7 @@ jobs:
         run: |
           set +e
           PR_ID=${{ github.event.pull_request.number }}
-          BRANCH_NAME="open_merge/${PR_ID}"
+          BRANCH_NAME="open_merge_pre/${PR_ID}"
           echo "BRANCH_NAME is $BRANCH_NAME"
           CURRENT_INTERNAL_COMMITID="UNKNOWN"
           echo "current internal commit id is $CURRENT_INTERNAL_COMMITID"
