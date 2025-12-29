@@ -8,15 +8,18 @@ fi
 
 COMMIT_ID=$1
 SECURITY=$2
-PIPELINE_ID="49023"
-PROJECT_ID="2428591"
+PIPELINE_ID="1346"
+PROJECT_ID="2654816"
+MAX_ATTEMPTS=3
+SLEEP_INTERVAL=20
 
-# 设置最大等待时间
-MAX_WAIT_TIME=7200
-START_TIME=$(date +%s)
+echo "Pre-checking CI status for commitId: ${COMMIT_ID} ..."
+echo "Will check ${MAX_ATTEMPTS} times with ${SLEEP_INTERVAL}s interval"
 
-while true; do
-    echo "Querying CI status for commitId: ${COMMIT_ID} ..."
+# 循环检查 3 次
+for attempt in $(seq 1 $MAX_ATTEMPTS); do
+    echo ""
+    echo "=== Attempt ${attempt}/${MAX_ATTEMPTS} ==="
 
     response=$(curl -s  -H "Content-Type: application/json" \
                         -H "Authorization: Basic ${SECURITY}" \
@@ -26,21 +29,27 @@ while true; do
     # 检查curl是否成功
     if [ $? -ne 0 ]; then
         echo "Error: Failed to query CI status!"
-        exit 1
+        if [ $attempt -lt $MAX_ATTEMPTS ]; then
+            echo "Will retry in ${SLEEP_INTERVAL} seconds..."
+            sleep $SLEEP_INTERVAL
+            continue
+        else
+            echo "All attempts failed, need to run CI"
+            exit 1
+        fi
     fi
 
     # 检查响应是否为空
     if [ -z "$response" ]; then
         echo "Error: Empty response from CI service!"
-        exit 1
-    fi
-
-    # 检查是否超时
-    CURRENT_TIME=$(date +%s)
-    ELAPSED_TIME=$((CURRENT_TIME - START_TIME))
-    if [ $ELAPSED_TIME -gt $MAX_WAIT_TIME ]; then
-        echo "Error: Timeout waiting for CI completion (waited ${ELAPSED_TIME} seconds)"
-        exit 1
+        if [ $attempt -lt $MAX_ATTEMPTS ]; then
+            echo "Will retry in ${SLEEP_INTERVAL} seconds..."
+            sleep $SLEEP_INTERVAL
+            continue
+        else
+            echo "All attempts failed, need to run CI"
+            exit 1
+        fi
     fi
 
     status_raw=$(echo "$response" | jq -r '.status')
@@ -66,6 +75,7 @@ while true; do
     else
         status_summary="$status_json"
     fi
+
     main_status="UNKNOWN"
     if [[ "$status_json" == "null" ]]; then
         main_status="UNKNOWN"
@@ -87,17 +97,23 @@ while true; do
 
     echo "Current main status: $main_status"
 
-    if [[ "$main_status" == "DONE" || "$main_status" == "FAILED"  ]]; then
-        echo "Current status: $status_summary"
-        if [[ "$main_status" == "DONE" ]]; then
-            echo "CI completed successfully"
-            exit 0
-        else
-            echo "CI failed with commitId: ${COMMIT_ID}, status: $status_summary, task link: https://code.alibaba-inc.com/foundation_models/RTP-LLM/ci/jobs?pipelineId=${PIPELINE_ID}&pipelineRunId=${taskId}&createType=yaml"
-            exit 1
-        fi
-        break
+    # 如果状态为 DONE，立即返回成功
+    if [[ "$main_status" == "DONE" ]]; then
+        echo "CI already completed successfully for this commit"
+        echo "Skipping CI trigger"
+        exit 0
     fi
 
-    sleep 20
+    # 如果不是最后一次尝试，等待后继续
+    if [ $attempt -lt $MAX_ATTEMPTS ]; then
+        echo "CI status is ${main_status}, will check again in ${SLEEP_INTERVAL} seconds..."
+        sleep $SLEEP_INTERVAL
+    fi
 done
+
+# 所有尝试都完成，但没有发现 DONE 状态
+echo ""
+echo "=== Final Result ==="
+echo "After ${MAX_ATTEMPTS} attempts, CI is not in DONE status"
+echo "Need to run CI"
+exit 1

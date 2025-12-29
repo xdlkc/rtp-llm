@@ -2,8 +2,8 @@
 
 set -x
 # Check if two arguments are provided
-if [ $# -ne 4 ]; then
-    echo "Usage: $0 <COMMIT_ID> <SECURITY> <GITHUB_SOURCE_REPO> <GITHUB_PR_ID>"
+if [ $# -ne 5 ]; then
+    echo "Usage: $0 <COMMIT_ID> <SECURITY> <GITHUB_SOURCE_REPO> <GITHUB_PR_ID> <GITHUB_RUN_ID>"
     exit 1
 fi
 
@@ -11,15 +11,16 @@ fi
 COMMIT_ID=$1
 SECURITY=$2
 REPO_URL="https://github.com/${GITHUB_REPOSITORY}.git"
-PROJECT_ID="2654816"
-BRANCH_REF="develop/main_pre"
+PROJECT_ID="2428591"
+BRANCH_REF="feature/test-ci"
 CANCEL_IN_PROGRESS="true"
-PIPELINE_ID="1346"
+PIPELINE_ID="49023"
 GITHUB_COMMIT_ID="${COMMIT_ID}"
 GITHUB_SOURCE_REPO=$3
 GITHUB_PR_ID=$4
 BRANCH_NAME="open_merge_pre/${GITHUB_PR_ID}"
 CURRENT_INTERNAL_COMMITID="UNKNOWN"
+CURRENT_GITHUB_RUN_ID=$5
 
 # Call get-branch-info.sh to get CURRENT_INTERNAL_COMMITID
 BRANCH_INFO=$(sh ./get-branch-info.sh "${BRANCH_NAME}")
@@ -50,6 +51,6 @@ curl -v -H "Content-Type: application/json" \
             \"repositoryUrl\": \"${REPO_URL}\",
             \"aone\": { \"projectId\": \"${PROJECT_ID}\", \"pipelineId\": \"${PIPELINE_ID}\"},
             \"newBranch\": { \"name\": \"${BRANCH_NAME}\", \"ref\": \"${BRANCH_REF}\", \"head\": \"UNKNOWN\" },
-            \"params\": {\"cancel-in-progress\": \"${CANCEL_IN_PROGRESS}\", \"github_commit\":\"${GITHUB_COMMIT_ID}\", \"github_source_repo\": \"${GITHUB_SOURCE_REPO}\"}
+            \"params\": {\"cancel-in-progress\": \"${CANCEL_IN_PROGRESS}\", \"github_commit\":\"${GITHUB_COMMIT_ID}\", \"github_source_repo\": \"${GITHUB_SOURCE_REPO}\",\"github_run_id\": \"${CURRENT_GITHUB_RUN_ID}\",\"aone_branch_name\": \"${BRANCH_NAME}\",\"aone_branch_ref\": \"${BRANCH_REF}\"}
          }" \
      "https://triggero-mq-pre-rbmuaqmqmz.cn-hangzhou.fcapp.run"
