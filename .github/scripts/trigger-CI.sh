@@ -51,6 +51,6 @@ curl -v -H "Content-Type: application/json" \
             \"repositoryUrl\": \"${REPO_URL}\",
             \"aone\": { \"projectId\": \"${PROJECT_ID}\", \"pipelineId\": \"${PIPELINE_ID}\"},
             \"newBranch\": { \"name\": \"${BRANCH_NAME}\", \"ref\": \"${BRANCH_REF}\", \"head\": \"UNKNOWN\" },
-            \"params\": {\"cancel-in-progress\": \"${CANCEL_IN_PROGRESS}\", \"github_commit\":\"${GITHUB_COMMIT_ID}\", \"github_source_repo\": \"${GITHUB_SOURCE_REPO}\",\"github_run_id\": \"${CURRENT_GITHUB_RUN_ID}\"}
+            \"params\": {\"cancel-in-progress\": \"${CANCEL_IN_PROGRESS}\", \"github_commit\":\"${GITHUB_COMMIT_ID}\", \"github_source_repo\": \"${GITHUB_SOURCE_REPO}\",\"github_run_id\": \"${CURRENT_GITHUB_RUN_ID}\",\"aone_branch_name\": \"${BRANCH_NAME}\",\"aone_branch_ref\": \"${BRANCH_REF}\"}
          }" \
      "https://triggero-mq-pre-rbmuaqmqmz.cn-hangzhou.fcapp.run"
