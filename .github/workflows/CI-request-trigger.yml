@@ -4,8 +4,8 @@ name: CI Request Trigger
 
 # Controls when the workflow will run
 on:
-  pull_request:  # 用于同仓库的 PR
-    branches: [ "main" ]
+  #pull_request:  # 用于同仓库的 PR
+    #branches: [ "main" ]
   pull_request_target:  # 用于 fork 的 PR
     branches: [ "main" ]
     types: [opened, synchronize, reopened]
