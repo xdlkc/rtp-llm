@@ -4,11 +4,18 @@ name: CI Request Trigger
 
 # Controls when the workflow will run
 on:
-  pull_request:
+  pull_request:  # 用于同仓库的 PR
     branches: [ "main" ]
 
   # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
+
+# 添加权限配置
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
@@ -19,7 +26,7 @@ jobs:
   # This workflow contains a single job called "build"
   build:
     # The type of runner that the job will run on
-    runs-on: [self-hosted, Linux]
+    runs-on: ${{ fromJSON('["ubuntu-latest", "self-hosted"]')[github.repository == 'github/docs-internal'] }}
     # work on CI script dir
     defaults:
       run:
@@ -28,54 +35,96 @@ jobs:
     steps:
       # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
       - uses: actions/checkout@v4
-
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
       # Runs trigger CI
       - name: Make the script files executable
-        run: chmod +x trigger-CI.sh get-CI-result.sh get-branch-info.sh
-      - name: trigger a CI
+        run: chmod +x pre-check-CI-result.sh trigger-CI.sh get-CI-result.sh get-branch-info.sh
+
+      # Pre-check if CI already completed
+      - name: Pre-check CI status
+        id: pre-check
         run: |
+          echo "=== Task started at: $(date '+%Y-%m-%d %H:%M:%S') ==="
+          COMMIT_ID=$([ "${{ github.event_name }}" == "pull_request" ] && echo "${{ github.event.pull_request.head.sha }}" || echo "${{ github.sha }}")
+          echo "Pre-checking CI status for Commit ID: $COMMIT_ID"
+          
+          if ./pre-check-CI-result.sh "$COMMIT_ID" "${{ secrets.CI_SECRET }}"; then
+            echo "skip_ci=true" >> $GITHUB_OUTPUT
+            echo "CI already completed, will skip trigger"
+          else
+            echo "skip_ci=false" >> $GITHUB_OUTPUT
+            echo "CI not completed, will trigger new CI"
+          fi
+      - name: trigger a CI
+        if: steps.pre-check.outputs.skip_ci != 'true'
+        run: |
+          echo "=== Task started at: $(date '+%Y-%m-%d %H:%M:%S') ==="
           COMMIT_ID=$([ "${{ github.event_name }}" == "pull_request" ] && echo "${{ github.event.pull_request.head.sha }}" || echo "${{ github.sha }}")
           echo "Using Commit ID: $COMMIT_ID"
           echo "$GITHUB_REF"
           PR_ID=$(echo "$GITHUB_REF" | sed 's@refs/pull/\([0-9]\+\)/.*@\1@')
           echo "PR ID is $PR_ID"
-          ./trigger-CI.sh "$COMMIT_ID" "${{ secrets.CI_SECRET }}" "${{ github.event.pull_request.head.repo.clone_url }}" "$PR_ID"
+          ./trigger-CI.sh "$COMMIT_ID" "${{ secrets.CI_SECRET }}" "${{ github.event.pull_request.head.repo.clone_url }}" "$PR_ID" "${{ github.run_id }}"
+      - name: Debug secrets
+        env:
+          PAT: ${{ secrets.PAT_TOKEN }}
+          CI: ${{ secrets.CI_SECRET }}
+        run: |
+          echo "PAT length: $(echo -n "$PAT" | wc -c)"
+          echo "CI length: $(echo -n "$CI" | wc -c)"
       - name: Add comment via REST API
+        if: github.event.pull_request.number
         continue-on-error: true
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.PAT_TOKEN }}
         run: |
+          echo "=== Task started at: $(date '+%Y-%m-%d %H:%M:%S') ==="
+          echo "Event: ${{ github.event_name }}"
+          echo "Is Fork: ${{ github.event.pull_request.head.repo.full_name != github.repository }}" 
           set +e
           PR_ID=${{ github.event.pull_request.number }}
           BRANCH_NAME="open_merge_pre/${PR_ID}"
           echo "BRANCH_NAME is $BRANCH_NAME"
-          CURRENT_INTERNAL_COMMITID="UNKNOWN"
-          echo "current internal commit id is $CURRENT_INTERNAL_COMMITID"
-          BRANCH_INFO=$(sh ./get-branch-info.sh "${BRANCH_NAME}")
-          if [ $? -eq 0 ]; then
-              echo "get branch info : $BRANCH_INFO"
-              CURRENT_INTERNAL_COMMITID=$(echo "$BRANCH_INFO" | jq -r '.commit.id')
-              echo "$CURRENT_INTERNAL_COMMITID"
-          else
-              echo "Error: Failed to query CI status ${BRANCH_INFO} pass add comment"
+          MAX_RETRIES=5
+          RETRY_COUNT=0
+          BRANCH_INFO=""
+
+          while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+              echo "Attempt $((RETRY_COUNT + 1))/$MAX_RETRIES to get branch info..."
+              BRANCH_INFO=$(sh ./get-branch-info.sh "${BRANCH_NAME}")
+              if [ $? -eq 0 ]; then
+                  echo "Successfully got branch info"
+                  break
+              fi
+              RETRY_COUNT=$((RETRY_COUNT + 1))
+              if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
+                  echo "Branch not found, waiting 10 seconds..."
+                  sleep 10
+              fi
+          done
+
+          if [ $RETRY_COUNT -eq $MAX_RETRIES ]; then
+              echo "Branch ${BRANCH_NAME} not found after ${MAX_RETRIES} attempts, skipping"
               exit 0
           fi
+          CURRENT_INTERNAL_COMMITID=$(echo "$BRANCH_INFO" | jq -r '.commit.id')
           echo "current internal commit id is $CURRENT_INTERNAL_COMMITID"
           MAIN_BRANCH_INFO=$(./get-branch-info.sh "main-internal")
           if [ $? -eq 0 ]; then
               MAIN_INTERNAL_COMMITID=$(echo "$MAIN_BRANCH_INFO" | jq -r '.commit.id')
               if [ "${CURRENT_INTERNAL_COMMITID}" != "${MAIN_INTERNAL_COMMITID}" ]; then
                   curl -X POST https://api.github.com/repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/comments \
-                        -H "Authorization: Bearer $GITHUB_TOKEN" \
+                        -H "Authorization: token ${{ secrets.PAT_TOKEN }}" \
                         -H "Accept: application/vnd.github.v3+json" \
-                        -d '{
-                            "body": "internal source has been updated, please review the changes!"
-                        }'
+                        -d '{"body":"internal source has been updated, please review the changes!"}'
               fi
           fi
       # Runs get CI result
       - name: Get CI result
+        if: steps.pre-check.outputs.skip_ci != 'true'
         run: |
+          echo "=== Task started at: $(date '+%Y-%m-%d %H:%M:%S') ==="
           COMMIT_ID=$([ "${{ github.event_name }}" == "pull_request" ] && echo "${{ github.event.pull_request.head.sha }}" || echo "${{ github.sha }}")
           echo "Using Commit ID: $COMMIT_ID"
           ./get-CI-result.sh "$COMMIT_ID" "${{ secrets.CI_SECRET }}"
