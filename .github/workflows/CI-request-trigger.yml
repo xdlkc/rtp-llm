@@ -66,20 +66,6 @@ jobs:
           PR_ID=$(echo "$GITHUB_REF" | sed 's@refs/pull/\([0-9]\+\)/.*@\1@')
           echo "PR ID is $PR_ID"
           ./trigger-CI.sh "$COMMIT_ID" "${{ secrets.CI_SECRET }}" "${{ github.event.pull_request.head.repo.clone_url }}" "$PR_ID" "${{ github.run_id }}"
-      - name: Test PAT_TOKEN with GitHub API
-        env:
-          GITHUB_TOKEN: ${{ secrets.PAT_TOKEN }}
-        run: |
-          response=$(curl -s -o /dev/null -w "%{http_code}" \
-            -H "Authorization: token ${{ secrets.PAT_TOKEN }}" \
-            -H "Accept: application/vnd.github.v3+json" \
-            "https://api.github.com/repos/${{ github.repository }}/issues")
-          if [ "$response" = "200" ]; then
-            echo "PAT_TOKEN is valid"
-          else
-            echo "PAT_TOKEN is invalid or lacks permissions (HTTP $response)"
-            exit 1
-          fi
       - name: Add comment via REST API
         if: github.event.pull_request.number
         continue-on-error: true
